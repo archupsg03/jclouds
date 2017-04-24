@@ -568,7 +568,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
          String path = mpu.containerName() + "/" + getMPUPartName(mpu, part.partNumber());
          builder.add(Segment.builder().path(path).etag(part.partETag()).sizeBytes(part.partSize()).build());
       }
-      return api.getDynamicLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.containerName(),mpu.blobName(),
+      return api.getDynamicLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.containerName(), mpu.blobName(), 
             builder.build(), mpu.blobMetadata().getUserMetadata(), getContentMetadataForManifest(mpu.blobMetadata().getContentMetadata()));
    }
 
