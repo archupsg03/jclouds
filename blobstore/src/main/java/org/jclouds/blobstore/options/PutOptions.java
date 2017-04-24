@@ -39,11 +39,11 @@ public class PutOptions implements Cloneable {
    public static final ImmutablePutOptions NONE = new ImmutablePutOptions(new PutOptions());
 
    private BlobAccess blobAccess = BlobAccess.PRIVATE;
-   private boolean multipart = false;
-   private boolean useCustomExecutor = false;
+   protected boolean multipart = false;
+   protected boolean useCustomExecutor = false;
 
    // TODO: This exposes ListeningExecutorService to the user, instead of a regular ExecutorService
-   private ListeningExecutorService customExecutor = MoreExecutors.sameThreadExecutor();
+   protected ListeningExecutorService customExecutor = MoreExecutors.sameThreadExecutor();
 
    public PutOptions() {
    }

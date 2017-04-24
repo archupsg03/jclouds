@@ -17,6 +17,9 @@
 package org.jclouds.openstack.swift.v1.blobstore;
 
 import static com.google.common.base.Preconditions.checkArgument;
+
+
+
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.tryFind;
 import static com.google.common.collect.Lists.transform;
@@ -24,6 +27,7 @@ import static org.jclouds.Constants.PROPERTY_USER_THREADS;
 import static org.jclouds.blobstore.options.ListContainerOptions.Builder.recursive;
 import static org.jclouds.location.predicates.LocationPredicates.idEquals;
 import static org.jclouds.openstack.swift.v1.options.PutOptions.Builder.metadata;
+import static org.jclouds.openstack.swift.v1.options.ListContainerOptions.Builder.prefix;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +39,9 @@ import java.lang.reflect.Method;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -93,6 +99,7 @@ import org.jclouds.openstack.swift.v1.domain.Segment;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.features.BulkApi;
 import org.jclouds.openstack.swift.v1.features.ObjectApi;
+import org.jclouds.openstack.swift.v1.options.OpenStackSwiftPutOptions;
 import org.jclouds.openstack.swift.v1.options.UpdateContainerOptions;
 import org.jclouds.openstack.swift.v1.reference.SwiftHeaders;
 import org.jclouds.util.Closeables2;
@@ -100,6 +107,7 @@ import org.jclouds.util.Closeables2;
 import com.google.common.annotations.Beta;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
+import com.google.common.base.Strings;
 import com.google.common.base.Supplier;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -112,6 +120,7 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
@@ -189,11 +198,17 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
 
    @Override
    public boolean createContainerInLocation(Location location, String container, CreateContainerOptions options) {
+      boolean resultContainerCreate = false;
       checkArgument(location == null || location.equals(region), "location must be null or %s", region);
       if (options.isPublicRead()) {
-         return api.getContainerApi(regionId).create(container, ANYBODY_READ);
+         resultContainerCreate = api.getContainerApi(regionId).create(container, ANYBODY_READ);
       }
-      return api.getContainerApi(regionId).create(container, BASIC_CONTAINER);
+      resultContainerCreate = api.getContainerApi(regionId).create(container, BASIC_CONTAINER);
+      if (resultContainerCreate) {
+         Container val = api.getContainerApi(regionId).get(container);
+         containerCache.put(container, Optional.fromNullable(val));
+      }
+      return resultContainerCreate;
    }
 
    @Override
@@ -231,10 +246,10 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
       ObjectApi objectApi = api.getObjectApi(regionId, container);
       ObjectList objects = objectApi.list(toListContainerOptions.apply(options));
       if (objects == null) {
-         containerCache.put(container, Optional.<Container> absent());
+         //containerCache.put(container, Optional.<Container> absent());
          return new PageSetImpl<StorageMetadata>(ImmutableList.<StorageMetadata> of(), null);
       } else {
-         containerCache.put(container, Optional.of(objects.getContainer()));
+         //containerCache.put(container, Optional.of(objects.getContainer()));
          List<? extends StorageMetadata> list = transform(objects, toBlobMetadata(container));
          int limit = Optional.fromNullable(options.getMaxResults()).or(10000);
          String marker = null;
@@ -388,13 +403,26 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
 
    @Override
    public void removeBlob(String container, String name) {
-      // Multipart objects have a manifest which points to subobjects.  Normally
+      // Multipart objects have a manifest which points to subobjects. Normally
       // deleting a object only deletes the manifest, leaving the subobjects.
       // We first try a multipart delete and if that fails since the object is
       // not an MPU we fall back to single-part delete.
-      DeleteStaticLargeObjectResponse response = api.getStaticLargeObjectApi(regionId, container).delete(name);
-      if (!response.status().equals("200 OK")) {
+
+      String objManifest = getManifestInfo(container, name);
+      String sloInfo = getSLOInfo(container, name);
+      // Not MPU
+      if (objManifest == null && sloInfo == null)
          api.getObjectApi(regionId, container).delete(name);
+      else if (objManifest == null && sloInfo != null) {
+         // SLO
+         DeleteStaticLargeObjectResponse response = api.getStaticLargeObjectApi(regionId, container).delete(name);
+      }
+      // DLO
+      else if (objManifest != null && sloInfo == null) {
+         api.getObjectApi(regionId, container).delete(name);
+         if (!Strings.isNullOrEmpty(objManifest)) {
+            removeObjectsWithPrefix(objManifest);
+         }
       }
    }
 
@@ -474,12 +502,22 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
 
    private MultipartUpload initiateMultipartUpload(String container, BlobMetadata blobMetadata, long partSize, PutOptions options) {
       Long contentLength = blobMetadata.getContentMetadata().getContentLength();
-      String uploadId = String.format(Locale.ENGLISH, "%s/slo/%.6f/%s/%s", blobMetadata.getName(),
-              System.currentTimeMillis() / 1000.0, contentLength == null ? Long.valueOf(0) : contentLength,
-              partSize);
+      String uploadId = null;
+      // Construct MPU for SLO upload, including timestamp and content length
+      // and partSize
+      if (options instanceof OpenStackSwiftPutOptions) {
+         OpenStackSwiftPutOptions spo = (OpenStackSwiftPutOptions) options;
+         if (spo.isDLO()) {
+            uploadId = String.format("%s/dlo", blobMetadata.getName());
+         }
+      } else {
+         // Construct MPU for DLO upload, includes blobName. SLO is default
+         uploadId = String.format(Locale.ENGLISH, "%s/slo/%.6f/%s/%s", blobMetadata.getName(),
+               System.currentTimeMillis() / 1000.0, contentLength == null ? Long.valueOf(0) : contentLength, partSize);
+      }
       return MultipartUpload.create(container, blobMetadata.getName(), uploadId, blobMetadata, options);
    }
-
+   
    @Override
    public void abortMultipartUpload(MultipartUpload mpu) {
       ImmutableList.Builder<String> names = ImmutableList.builder();
@@ -520,8 +558,17 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
          String path = mpu.containerName() + "/" + getMPUPartName(mpu, part.partNumber());
          builder.add(Segment.builder().path(path).etag(part.partETag()).sizeBytes(part.partSize()).build());
       }
-
       return api.getStaticLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.blobName(),
+            builder.build(), mpu.blobMetadata().getUserMetadata(), getContentMetadataForManifest(mpu.blobMetadata().getContentMetadata()));
+   }
+   
+   public String completeMultipartUploadDLO(MultipartUpload mpu, List<MultipartPart> parts) {
+      ImmutableList.Builder<Segment> builder = ImmutableList.builder();
+      for (MultipartPart part : parts) {
+         String path = mpu.containerName() + "/" + getMPUPartName(mpu, part.partNumber());
+         builder.add(Segment.builder().path(path).etag(part.partETag()).sizeBytes(part.partSize()).build());
+      }
+      return api.getDynamicLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.containerName(),mpu.blobName(),
             builder.build(), mpu.blobMetadata().getUserMetadata(), getContentMetadataForManifest(mpu.blobMetadata().getContentMetadata()));
    }
 
@@ -635,7 +682,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
    @Beta
    protected String putMultipartBlob(String container, Blob blob, PutOptions overrides, ListeningExecutorService executor) {
       ArrayList<ListenableFuture<MultipartPart>> parts = new ArrayList<ListenableFuture<MultipartPart>>();
-
+      
       long contentLength = checkNotNull(blob.getMetadata().getContentMetadata().getContentLength(),
             "must provide content-length to use multi-part upload");
       MultipartUploadSlicingAlgorithm algorithm = new MultipartUploadSlicingAlgorithm(
@@ -643,13 +690,15 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
       long partSize = algorithm.calculateChunkSize(contentLength);
       MultipartUpload mpu = initiateMultipartUpload(container, blob.getMetadata(), partSize, overrides);
       int partNumber = 0;
-
+      
       for (Payload payload : slicer.slice(blob.getPayload(), partSize)) {
-         BlobUploader b =
-               new BlobUploader(mpu, partNumber++, payload);
+         BlobUploader b = new BlobUploader(mpu, partNumber++, payload);
          parts.add(executor.submit(b));
       }
-
+      if (overrides instanceof OpenStackSwiftPutOptions) {
+         if (((OpenStackSwiftPutOptions) overrides).isDLO())
+            return completeMultipartUploadDLO(mpu, Futures.getUnchecked(Futures.allAsList(parts)));
+      }
       return completeMultipartUpload(mpu, Futures.getUnchecked(Futures.allAsList(parts)));
    }
 
@@ -909,4 +958,115 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
          throw new RuntimeException("After " + retryCountLimit + " retries: " + lastException);
       }
    }
+   
+   /**
+    * Gets manifest Information for DLO uploaded file
+    * @param container
+    * @param objectName
+    * @return manifest file name if DLO uploaded, else null
+    */
+   private String getManifestInfo(String container, String objectName) {
+      ObjectApi objectApi = api.getObjectApi(regionId, container);
+      Multimap<String, String> objInfo = objectApi.getWithoutBody(objectName).getHeaders();
+      if (objInfo.containsKey("X-Object-Manifest")) {
+         Collection<String> objectManifest = objInfo.get("X-Object-Manifest");
+         return String.valueOf(objectManifest.toArray()[0]);
+      }
+      return null;
+   }
+   
+   /**
+    * Gets X-Static-Large-Object for SLO uploaded file
+    * @param container
+    * @param objectName
+    * @return true if object is SLO uploaded else null
+    */
+   private String getSLOInfo(String container, String objectName) {
+      ObjectApi objectApi = api.getObjectApi(regionId, container);
+      Multimap<String, String> objInfo = objectApi.getWithoutBody(objectName).getHeaders();
+      if (objInfo.containsKey("X-Static-Large-Object")) {
+         Collection<String> objectManifest = objInfo.get("X-Static-Large-Object");
+         return String.valueOf(objectManifest.toArray()[0]);
+      }
+      return null;
+   }
+   
+   
+   /**
+    * @param containerAndPrefix
+    */
+   private void removeObjectsWithPrefix(String containerAndPrefix) {
+      String[] parts = splitContainerAndKey(containerAndPrefix);
+
+      String container = parts[0];
+      String prefix = parts[1];
+
+      removeObjectsWithPrefix(container, prefix);
+   }
+
+    
+   /**
+    * @param containerAndKey
+    * @return array of size 2 with container and objectPrefix
+    */
+   private String[] splitContainerAndKey(String containerAndKey) {
+      String[] parts = containerAndKey.split("/", 2);
+      checkArgument(parts.length == 2, "No / separator found in \"%s\"", containerAndKey);
+      return parts;
+   }
+    
+   /**
+    * Retrieves a list of existing storage
+    * @param container
+    * @param options
+    * @return maximum of 10,000 object names per request.
+    */
+   private PageSet<? extends StorageMetadata> list(final String container,
+         org.jclouds.openstack.swift.v1.options.ListContainerOptions options) {
+      ObjectApi objectApi = api.getObjectApi(regionId, container);
+      ObjectList objects = objectApi.list(options);
+      if (objects == null) {
+         return new PageSetImpl<StorageMetadata>(ImmutableList.<StorageMetadata> of(), null);
+      } else {
+         List<? extends StorageMetadata> list = transform(objects, toBlobMetadata(container));
+         int limit = 10000;
+         String marker = null;
+         if (!list.isEmpty() && list.size() == limit) {
+            marker = list.get(limit - 1).getName();
+         }
+         list = transform(list, new Function<StorageMetadata, StorageMetadata>() {
+            public StorageMetadata apply(StorageMetadata input) {
+               if (input.getType() != StorageType.BLOB) {
+                  return input;
+               }
+               return blobMetadata(container, input.getName());
+            }
+         });
+         return new PageSetImpl<StorageMetadata>(list, marker);
+      }
+   }
+    
+   /**
+    * Removes object segments
+    * @param container
+    * @param prefix
+    * 
+    */
+   private void removeObjectsWithPrefix(String container, String prefix) {
+      String nextMarker = null;
+      ObjectApi objectApi = api.getObjectApi(regionId, container);
+      do {
+         org.jclouds.openstack.swift.v1.options.ListContainerOptions listContainerOptions = prefix(prefix);
+         if (nextMarker != null) {
+            listContainerOptions = listContainerOptions.marker(nextMarker);
+         }
+         PageSet<? extends StorageMetadata> chunks = list(container, listContainerOptions);
+         Iterator<? extends StorageMetadata> iter = chunks.iterator();
+
+         while (iter.hasNext()) {
+            objectApi.delete(iter.next().getName());
+         }
+         nextMarker = chunks.getNextMarker();
+      } while (nextMarker != null);
+   }  
 }

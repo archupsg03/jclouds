@@ -40,6 +40,7 @@ import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.domain.Blob;
 import org.jclouds.blobstore.integration.internal.BaseBlobStoreIntegrationTest;
 import org.jclouds.io.payloads.FilePayload;
+import org.jclouds.openstack.swift.v1.options.OpenStackSwiftPutOptions;
 import org.jclouds.util.Closeables2;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -119,6 +120,50 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
             .build();
       // configure the blobstore to use multipart uploading of the file
       String eTag = blobStore.putBlob(CONTAINER, blob, multipart(executor));
+      // assertEquals(eTag, etag);
+      // The etag returned by Swift is not the md5 of the Blob uploaded
+      // It is the md5 of the concatenated segment md5s
+   }
+   
+   @Test
+   public void uploadMultipartBlobDLO() {
+      Blob blob = blobStore.blobBuilder(bigFile.getName())
+            .payload(new FilePayload(bigFile))
+            .build();
+      // configure the blobstore to use multipart uploading of the file
+      OpenStackSwiftPutOptions opt = new OpenStackSwiftPutOptions();
+      opt.multipart(executor);
+      opt.DLO(true);
+      String eTag = blobStore.putBlob(CONTAINER, blob, opt);
+      // assertEquals(eTag, etag);
+      // The etag returned by Swift is not the md5 of the Blob uploaded
+      // It is the md5 of the concatenated segment md5s
+   }
+   
+   @Test
+   public void removeMultipartBlob() {
+      Blob blob = blobStore.blobBuilder(bigFile.getName())
+            .payload(new FilePayload(bigFile))
+            .build();
+      // configure the blobstore to use multipart uploading of the file
+      String eTag = blobStore.putBlob(CONTAINER, blob, multipart(executor));
+      blobStore.removeBlob(CONTAINER, bigFile.getName());
+      // assertEquals(eTag, etag);
+      // The etag returned by Swift is not the md5 of the Blob uploaded
+      // It is the md5 of the concatenated segment md5s
+   }
+   
+   @Test
+   public void removeMultipartBlobDLO() {
+      Blob blob = blobStore.blobBuilder(bigFile.getName())
+            .payload(new FilePayload(bigFile))
+            .build();
+      OpenStackSwiftPutOptions opt = new OpenStackSwiftPutOptions();
+      opt.multipart(executor);
+      opt.DLO(true);
+      // configure the blobstore to use multipart uploading of the file
+      String eTag = blobStore.putBlob(CONTAINER, blob, opt);
+      blobStore.removeBlob(CONTAINER, bigFile.getName());
       // assertEquals(eTag, etag);
       // The etag returned by Swift is not the md5 of the Blob uploaded
       // It is the md5 of the concatenated segment md5s
