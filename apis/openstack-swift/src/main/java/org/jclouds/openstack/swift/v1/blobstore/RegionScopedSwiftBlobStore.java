@@ -503,7 +503,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
    private MultipartUpload initiateMultipartUpload(String container, BlobMetadata blobMetadata, long partSize, PutOptions options) {
       Long contentLength = blobMetadata.getContentMetadata().getContentLength();
       String uploadId = null;
-      // Construct MPU for SLO upload, including timestamp and content length
+      // Construct MPU for DLO upload, including timestamp and content length
       // and partSize
       if (options instanceof OpenStackSwiftPutOptions) {
          OpenStackSwiftPutOptions spo = (OpenStackSwiftPutOptions) options;
