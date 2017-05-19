@@ -189,11 +189,18 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
 
    @Override
    public boolean createContainerInLocation(Location location, String container, CreateContainerOptions options) {
+      boolean resultContainerCreate = false;
       checkArgument(location == null || location.equals(region), "location must be null or %s", region);
       if (options.isPublicRead()) {
-         return api.getContainerApi(regionId).create(container, ANYBODY_READ);
+         resultContainerCreate = api.getContainerApi(regionId).create(container, ANYBODY_READ);
+      } else {
+         resultContainerCreate = api.getContainerApi(regionId).create(container, BASIC_CONTAINER);
       }
-      return api.getContainerApi(regionId).create(container, BASIC_CONTAINER);
+      if (resultContainerCreate) {
+         Container val = api.getContainerApi(regionId).get(container);
+         containerCache.put(container, Optional.fromNullable(val));
+      }
+      return resultContainerCreate;
    }
 
    @Override
@@ -231,10 +238,8 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
       ObjectApi objectApi = api.getObjectApi(regionId, container);
       ObjectList objects = objectApi.list(toListContainerOptions.apply(options));
       if (objects == null) {
-         containerCache.put(container, Optional.<Container> absent());
          return new PageSetImpl<StorageMetadata>(ImmutableList.<StorageMetadata> of(), null);
       } else {
-         containerCache.put(container, Optional.of(objects.getContainer()));
          List<? extends StorageMetadata> list = transform(objects, toBlobMetadata(container));
          int limit = Optional.fromNullable(options.getMaxResults()).or(10000);
          String marker = null;
