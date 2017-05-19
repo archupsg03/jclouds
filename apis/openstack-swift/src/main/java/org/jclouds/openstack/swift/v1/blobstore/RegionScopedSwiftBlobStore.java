@@ -40,6 +40,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -502,7 +503,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
       } else {
          // Construct MPU for DLO upload, including timestamp and content length
          // and partSize
-         uploadId = String.format("%s/slo/%.6f/%s/%s", blobMetadata.getName(), System.currentTimeMillis() / 1000.0,
+         uploadId = String.format(Locale.ENGLISH, "%s/slo/%.6f/%s/%s", blobMetadata.getName(), System.currentTimeMillis() / 1000.0,
                contentLength == null ? Long.valueOf(0) : contentLength, partSize);
       }
       return MultipartUpload.create(container, blobMetadata.getName(), uploadId, blobMetadata, options);
