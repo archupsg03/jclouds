@@ -127,7 +127,7 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
    
    @Test
    public void uploadMultipartBlobDLO() {
-      Blob blob = blobStore.blobBuilder(bigFile.getName())
+      Blob blob = blobStore.blobBuilder(bigFile.getName().concat("DLO"))
             .payload(new FilePayload(bigFile))
             .build();
       // configure the blobstore to use multipart uploading of the file
@@ -155,7 +155,7 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
    
    @Test
    public void removeMultipartBlobDLO() {
-      Blob blob = blobStore.blobBuilder(bigFile.getName())
+      Blob blob = blobStore.blobBuilder(bigFile.getName().concat("DLO"))
             .payload(new FilePayload(bigFile))
             .build();
       OpenStackSwiftPutOptions opt = new OpenStackSwiftPutOptions();

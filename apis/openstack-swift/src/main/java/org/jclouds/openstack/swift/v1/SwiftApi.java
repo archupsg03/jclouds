@@ -17,7 +17,6 @@
 package org.jclouds.openstack.swift.v1;
 
 import java.io.Closeable;
-
 import java.util.Set;
 
 import javax.ws.rs.Path;

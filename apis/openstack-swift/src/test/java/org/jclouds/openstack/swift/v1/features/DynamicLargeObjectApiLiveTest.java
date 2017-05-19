@@ -42,7 +42,7 @@ import com.google.common.io.ByteSource;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 @Test(groups = "live", testName = "DynamicLargeObjectApiLiveTest", singleThreaded = true)
-public class DynamiclargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
+public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
 
    private String defaultName = getClass().getSimpleName();
    private String defaultContainerName = getClass().getSimpleName() + "Container";

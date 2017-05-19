@@ -17,10 +17,8 @@
 package org.jclouds.openstack.swift.v1.features;
 
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
-
 import java.util.List;
 import java.util.Map;
-
 import javax.inject.Named;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.PUT;
@@ -72,6 +70,7 @@ public interface DynamicLargeObjectApi {
     * @return {@link SwiftObject#getEtag()} of the object, which is the MD5
     *         checksum of the concatenated ETag values of the {@code segments}.
     */
+   @Deprecated
    @Named("dynamicLargeObject:replaceManifest")
    @PUT
    @ResponseParser(ETagHeader.class)
