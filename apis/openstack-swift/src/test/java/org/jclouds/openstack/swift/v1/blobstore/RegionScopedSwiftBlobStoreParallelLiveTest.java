@@ -58,6 +58,8 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
 
    private File bigFile = new File("random.dat");
    private static final long SIZE = 10 * 1000 * 1000;
+   private File smallFile = new File("randomsmall.dat");
+   private static final long SIZE_SMALL_FILE = 10 * 1000 * 1000;
    private BlobStore blobStore;
    private String etag;
    private ListeningExecutorService executor =
@@ -68,6 +70,7 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
                            new ArrayBlockingQueue<Runnable>(10, true), new ThreadPoolExecutor.CallerRunsPolicy())));
 
    private static final String CONTAINER = "jcloudsparalleltest" + UUID.randomUUID();
+   private static final String CONTAINER_TEMP = "jcloudsparalleltesttemp" + UUID.randomUUID();
 
    public RegionScopedSwiftBlobStoreParallelLiveTest() {
       provider = "openstack-swift";
@@ -95,6 +98,7 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
    public void setup() throws IOException, InterruptedException {
       blobStore = getBlobStore();
       createRandomFile(SIZE, bigFile);
+      createRandomFile(SIZE_SMALL_FILE, smallFile);
       HashCode hashCode = Files.hash(bigFile, Hashing.md5());
       etag = hashCode.toString();
       blobStore.createContainerInLocation(null, CONTAINER);
@@ -105,13 +109,40 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
    public void cleanupFiles() {
       // Delete local file
       delete(bigFile);
+      delete(smallFile);
       delete(new File(bigFile + ".downloaded"));
 
       // Delete uploaded file
       blobStore.clearContainer(CONTAINER);
       blobStore.deleteContainer(CONTAINER);
+      blobStore.clearContainer(CONTAINER_TEMP);
+      blobStore.deleteContainer(CONTAINER_TEMP);
    }
 
+   @Test(expectedExceptions = { IllegalStateException.class })
+   public void getBlobTestFailure() {
+      blobStore.containerExists(CONTAINER_TEMP);
+      blobStore.createContainerInLocation(null, CONTAINER_TEMP);
+      Blob blob = blobStore.blobBuilder(smallFile.getName())
+            .payload(new FilePayload(smallFile))
+            .build();
+      blobStore.putBlob(CONTAINER, blob);
+      blobStore.getBlob(CONTAINER, smallFile.getName());
+      blobStore.clearContainer(CONTAINER_TEMP);
+      blobStore.deleteContainer(CONTAINER_TEMP);
+   }
+   
+   @Test
+   public void getBlobTestSuccess() {
+      blobStore.containerExists(CONTAINER_TEMP);
+      blobStore.createContainerInLocation(null, CONTAINER_TEMP);
+      Blob blob = blobStore.blobBuilder(smallFile.getName())
+            .payload(new FilePayload(smallFile))
+            .build();
+      blobStore.putBlob(CONTAINER, blob);
+      blobStore.getBlob(CONTAINER, smallFile.getName());
+   }
+   
    @Test
    public void uploadMultipartBlob() {
       Blob blob = blobStore.blobBuilder(bigFile.getName())
