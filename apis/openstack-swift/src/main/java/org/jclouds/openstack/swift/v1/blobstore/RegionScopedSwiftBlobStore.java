@@ -24,7 +24,6 @@ import static org.jclouds.Constants.PROPERTY_USER_THREADS;
 import static org.jclouds.blobstore.options.ListContainerOptions.Builder.recursive;
 import static org.jclouds.location.predicates.LocationPredicates.idEquals;
 import static org.jclouds.openstack.swift.v1.options.PutOptions.Builder.metadata;
-import static org.jclouds.openstack.swift.v1.options.ListContainerOptions.Builder.prefix;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,9 +35,7 @@ import java.lang.reflect.Method;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -96,7 +93,6 @@ import org.jclouds.openstack.swift.v1.domain.Segment;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.features.BulkApi;
 import org.jclouds.openstack.swift.v1.features.ObjectApi;
-import org.jclouds.openstack.swift.v1.options.OpenStackSwiftPutOptions;
 import org.jclouds.openstack.swift.v1.options.UpdateContainerOptions;
 import org.jclouds.openstack.swift.v1.reference.SwiftHeaders;
 import org.jclouds.util.Closeables2;
@@ -104,7 +100,6 @@ import org.jclouds.util.Closeables2;
 import com.google.common.annotations.Beta;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
-import com.google.common.base.Strings;
 import com.google.common.base.Supplier;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -117,7 +112,6 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
 import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
@@ -242,7 +236,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
       } else {
          containerCache.put(container, Optional.of(objects.getContainer()));
          List<? extends StorageMetadata> list = transform(objects, toBlobMetadata(container));
-         int limit = Optional.fromNullable(options.getMaxResults()).or(100);
+         int limit = Optional.fromNullable(options.getMaxResults()).or(10000);
          String marker = null;
          if (!list.isEmpty() && list.size() == limit) {
             marker = list.get(limit - 1).getName();
@@ -394,26 +388,13 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
 
    @Override
    public void removeBlob(String container, String name) {
-      // Multipart objects have a manifest which points to subobjects. Normally
+      // Multipart objects have a manifest which points to subobjects.  Normally
       // deleting a object only deletes the manifest, leaving the subobjects.
       // We first try a multipart delete and if that fails since the object is
       // not an MPU we fall back to single-part delete.
-      String objManifest = getManifestInfo(container, name);
-      // Not MPU
-      if (objManifest == null) {
-         api.getObjectApi(regionId, container).delete(name); }
-      else if (objManifest.equals("True")) {
-         // SLO
-         DeleteStaticLargeObjectResponse response = api.getStaticLargeObjectApi(regionId, container).delete(name);
-      } else if (objManifest != null) {
-         // DLO
+      DeleteStaticLargeObjectResponse response = api.getStaticLargeObjectApi(regionId, container).delete(name);
+      if (!response.status().equals("200 OK")) {
          api.getObjectApi(regionId, container).delete(name);
-         if (!Strings.isNullOrEmpty(objManifest)) {
-            String[] parts = splitContainerAndKey(objManifest);
-            String container_Name = parts[0];
-            String prefix = parts[1];
-            removeObjectsWithPrefix(container_Name, prefix);
-         }
       }
    }
 
@@ -493,19 +474,9 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
 
    private MultipartUpload initiateMultipartUpload(String container, BlobMetadata blobMetadata, long partSize, PutOptions options) {
       Long contentLength = blobMetadata.getContentMetadata().getContentLength();
-      String uploadId = null;
-      // Construct MPU for SLO upload, includes blobName. SLO is default    
-      if (options instanceof OpenStackSwiftPutOptions) {
-         OpenStackSwiftPutOptions spo = (OpenStackSwiftPutOptions) options;
-         if (spo.isDLO()) {
-            uploadId = String.format("%s/dlo", blobMetadata.getName());
-         }
-      } else {
-         // Construct MPU for DLO upload, including timestamp and content length
-         // and partSize
-         uploadId = String.format(Locale.ENGLISH, "%s/slo/%.6f/%s/%s", blobMetadata.getName(), System.currentTimeMillis() / 1000.0,
-               contentLength == null ? Long.valueOf(0) : contentLength, partSize);
-      }
+      String uploadId = String.format(Locale.ENGLISH, "%s/slo/%.6f/%s/%s", blobMetadata.getName(),
+              System.currentTimeMillis() / 1000.0, contentLength == null ? Long.valueOf(0) : contentLength,
+              partSize);
       return MultipartUpload.create(container, blobMetadata.getName(), uploadId, blobMetadata, options);
    }
    
@@ -518,7 +489,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
       removeBlobs(mpu.containerName(), names.build());
    }
 
-   private ImmutableMap<String, String> getContentMetadataForManifest(ContentMetadata contentMetadata) {
+   public ImmutableMap<String, String> getContentMetadataForManifest(ContentMetadata contentMetadata) {
       Builder<String, String> mapBuilder = ImmutableMap.builder();
       if (contentMetadata.getContentType() != null) {
          mapBuilder.put("content-type", contentMetadata.getContentType());
@@ -551,14 +522,9 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
          path = mpu.containerName() + "/" + getMPUPartName(mpu, part.partNumber());
          builder.add(Segment.builder().path(path).etag(part.partETag()).sizeBytes(part.partSize()).build());
       }
-      if (path.contains("slo"))
-         return api.getStaticLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.blobName(),
-               builder.build(), mpu.blobMetadata().getUserMetadata(),
-               getContentMetadataForManifest(mpu.blobMetadata().getContentMetadata()));
-      else
-         return api.getDynamicLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.containerName(),
-               mpu.blobName(), builder.build(), mpu.blobMetadata().getUserMetadata(),
-               getContentMetadataForManifest(mpu.blobMetadata().getContentMetadata()));
+      return api.getStaticLargeObjectApi(regionId, mpu.containerName()).replaceManifest(mpu.blobName(), builder.build(),
+            mpu.blobMetadata().getUserMetadata(),
+            getContentMetadataForManifest(mpu.blobMetadata().getContentMetadata()));
    }  
 
    @Override
@@ -684,6 +650,7 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
          BlobUploader b = new BlobUploader(mpu, partNumber++, payload);
          parts.add(executor.submit(b));
       }
+      
       return completeMultipartUpload(mpu, Futures.getUnchecked(Futures.allAsList(parts)));
    }
 
@@ -942,74 +909,5 @@ public class RegionScopedSwiftBlobStore implements BlobStore {
          }
          throw new RuntimeException("After " + retryCountLimit + " retries: " + lastException);
       }
-   }
-   
-   /**
-    * Gets manifest Information for DLO uploaded file
-    * @param container
-    * @param objectName
-    * @return manifest file name if DLO uploaded, else null
-    */
-   private String getManifestInfo(String container, String objectName) { 
-      ObjectApi objectApi = api.getObjectApi(regionId, container);
-      SwiftObject respHeaders = objectApi.getWithoutBody(objectName);
-      String result = null;
-      if (respHeaders == null) {
-         throw new KeyNotFoundException(container, objectName, "in remove Blob");
-      } else {
-         Multimap<String, String> objInfo = respHeaders.getHeaders();
-         if (objInfo.containsKey("X-Object-Manifest")) {
-            Collection<String> objectManifest = objInfo.get("X-Object-Manifest");
-            result = Iterables.getFirst(objectManifest, null);
-         }
-         if (objInfo.containsKey("X-Static-Large-Object")) {
-            Collection<String> objectManifest = objInfo.get("X-Static-Large-Object");
-            result = Iterables.getFirst(objectManifest, null);
-         }
-      }
-      return result;
-   }
-   
-   /**
-    * @param containerAndKey
-    * @return array of size 2 with container and objectPrefix
-    */
-   private static String[] splitContainerAndKey(String containerAndKey) {
-      String[] parts = containerAndKey.split("/", 2);
-      checkArgument(parts.length == 2, "No / separator found in \"%s\"", containerAndKey);
-      return parts;
-   }
-    
-   /**
-    * Removes object segments
-    * @param container
-    * @param prefix
-    * 
-    */
-   private void removeObjectsWithPrefix(String container, String prefix) {
-      ObjectApi objectApi = api.getObjectApi(regionId, container);
-      String nextMarker = null;
-      ObjectList objList = null;
-      ArrayList<String> objName = new ArrayList<String>();
-      int limit = 10000;
-      org.jclouds.openstack.swift.v1.options.ListContainerOptions listContainerOptions = prefix(prefix);
-      listContainerOptions.limit(limit);
-      do {
-         if (nextMarker != null) {
-            listContainerOptions = listContainerOptions.marker(nextMarker);
-         }
-         objList = objectApi.list(listContainerOptions);
-         Iterator<SwiftObject> swiftObj_Iter = objList.iterator();
-         while (swiftObj_Iter.hasNext()) {
-            objName.add(swiftObj_Iter.next().getName());
-         }
-         removeBlobs(container, objName);
-         if (!objList.isEmpty() && objList.size() == limit) {
-            nextMarker = objList.get(limit - 1).getName();
-         }
-         if (objList.isEmpty()) {
-            nextMarker = null;
-         }
-      } while (nextMarker != null);
    }
 }
