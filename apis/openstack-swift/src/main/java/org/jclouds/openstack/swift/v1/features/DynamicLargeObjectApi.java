@@ -88,6 +88,23 @@ public interface DynamicLargeObjectApi {
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);
    
+   /**
+    * Creates object segments.
+    *
+    * @param objectName
+    *           corresponds to {@link SwiftObject#getName()}.
+    * @param segments
+    *           ordered parts which will be concatenated upon download.
+    * @param metadata
+    *           corresponds to {@link SwiftObject#getMetadata()}.
+    * @param headers
+    *           Binds the map to headers, without prefixing/escaping the header
+    *           name/key.
+    *
+    * @return {@link SwiftObject#getEtag()} of the object, which is the MD5
+    *         checksum of the concatenated ETag values of the {@code segments}.
+    */
+   
    @Deprecated
    @Named("dynamicLargeObject: uploadLargeFile")
    @PUT
@@ -98,6 +115,13 @@ public interface DynamicLargeObjectApi {
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);
 
+   /**
+    * Delete objects.
+    *
+    * @param objectName
+    *           corresponds to {@link SwiftObject#getName()}.
+    */
+   
    @Deprecated
    @Named("dynamicLargeObject: removeLargeFile")
    @DELETE

@@ -17,9 +17,21 @@
 package org.jclouds.openstack.swift.v1.blobstore.functions;
 
 import org.jclouds.io.ContentMetadata;
+import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+
+/**
+ * Updates Content Metadata.
+ *
+ * Required to update the Content Length of Object File as Sum of Content length
+ * of Segments
+ * 
+ * @param contentMetadata
+ * 
+ * @return Map with Content Metadata.
+ */
 
 public class ContentMetaDataToMap {
 
