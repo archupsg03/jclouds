@@ -37,7 +37,7 @@ public class Segment {
    @Named("size_bytes")
    private final long sizeBytes;
 
-   private Segment(String path, String etag, long sizeBytes) {
+   public Segment(String path, String etag, long sizeBytes) {
       this.path = checkNotNull(path, "path");
       this.etag = checkNotNull(etag, "etag of %s", path);
       this.sizeBytes = sizeBytes;
