@@ -54,7 +54,7 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
       try {
          SwiftApi api = api(server.getUrl("/").toString(), "openstack-swift");
          assertEquals(
-               api.getDynamicLargeObjectApi("DFW", containerName).uploadLargeFile(containerName, objectName.concat("1"),
+               api.getDynamicLargeObjectApi("DFW", containerName).uploadPart(containerName, objectName.concat("1"),
                      Payloads.newPayload("data1"), ImmutableMap.of("myfoo", "Bar"), ImmutableMap.of("myfoo", "Bar")),
                "89d903bc35dede724fd52c51437ff5fd");
          api.getDynamicLargeObjectApi("DFW", containerName).replaceManifest(objectName,

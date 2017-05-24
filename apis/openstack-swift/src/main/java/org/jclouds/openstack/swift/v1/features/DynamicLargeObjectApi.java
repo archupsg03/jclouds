@@ -107,7 +107,7 @@ public interface DynamicLargeObjectApi {
    @PUT
    @Headers(keys = EXPECT, values = "100-continue")
    @ResponseParser(ETagHeader.class)
-   String uploadLargeFile(@PathParam("containerName") String container, @PathParam("objectName") String objectName,
+   String uploadPart(@PathParam("containerName") String container, @PathParam("objectName") String objectName,
          @BinderParam(SetPayload.class) Payload blob,
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);

@@ -69,7 +69,7 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
       for (int i = partNumber; i < 3; partNumber++) {
          String objName = String.format("%s/%s/%s", objectName, "dlo", partNumber);
          String data = String.format("%s%s", "data", partNumber);
-         String etag = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).uploadLargeFile(
+         String etag = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).uploadPart(
                defaultContainerName, objName, Payloads.newPayload(data), ImmutableMap.of("myfoo", "Bar"),
                ImmutableMap.of("myfoo", "Bar"));
          Segment s = new Segment(objName, etag, data.length());
