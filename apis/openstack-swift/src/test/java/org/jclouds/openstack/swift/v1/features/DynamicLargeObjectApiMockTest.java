@@ -57,7 +57,7 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
                api.getDynamicLargeObjectApi("DFW", containerName).uploadLargeFile(containerName, objectName.concat("1"),
                      Payloads.newPayload("data1"), ImmutableMap.of("myfoo", "Bar"), ImmutableMap.of("myfoo", "Bar")),
                "89d903bc35dede724fd52c51437ff5fd");
-         api.getDynamicLargeObjectApi("DFW", containerName).replaceManifest(containerName, objectName,
+         api.getDynamicLargeObjectApi("DFW", containerName).replaceManifest(objectName,
                ImmutableList.<Segment> builder()
                      .add(Segment.builder().path("/testContainer/myObjectTest").etag("89d903bc35dede724fd52c51437ff5fd")
                            .sizeBytes(5).build())
@@ -82,25 +82,6 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
    }
 
    @SuppressWarnings("deprecation")
-   @Test(dependsOnMethods = "uploadLargeFile")
-   public void removeLargeFile() throws Exception {
-      MockWebServer server = mockOpenStackServer();
-      server.enqueue(addCommonHeaders(new MockResponse().setBody(stringFromResource("/access.json"))));
-      server.enqueue(addCommonHeaders(new MockResponse().setResponseCode(200)));
-      try {
-         SwiftApi api = api(server.getUrl("/").toString(), "openstack-swift");
-         api.getDynamicLargeObjectApi("DFW", containerName).removeLargeFile(containerName, objectName);
-         assertEquals(server.getRequestCount(), 2);
-         assertAuthentication(server);
-         RecordedRequest removeRequest = server.takeRequest();
-         assertRequest(removeRequest, "DELETE",
-               "/v1/MossoCloudFS_5bcf396e-39dd-45ff-93a1-712b9aba90a9/myContainer/myObjectTest");
-      } finally {
-         server.shutdown();
-      }
-   }
-
-   @SuppressWarnings("deprecation")
    public void testReplaceManifest() throws Exception {
       MockWebServer server = mockOpenStackServer();
       server.enqueue(addCommonHeaders(new MockResponse().setBody(stringFromResource("/access.json"))));
@@ -109,7 +90,7 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
 
       try {
          SwiftApi api = api(server.getUrl("/").toString(), "openstack-swift");
-         assertEquals(api.getDynamicLargeObjectApi("DFW", "myContainer").replaceManifest("myContainer", "myObject",
+         assertEquals(api.getDynamicLargeObjectApi("DFW", "myContainer").replaceManifest("myObject",
                ImmutableList.<Segment> builder()
                      .add(Segment.builder().path("/mycontainer/objseg1").etag("0228c7926b8b642dfb29554cd1f00963")
                            .sizeBytes(1468006).build())
@@ -144,7 +125,7 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
 
       try {
          SwiftApi api = api(server.getUrl("/").toString(), "openstack-swift");
-         assertEquals(api.getDynamicLargeObjectApi("DFW", "myContainer").replaceManifest("myContainer", "unic₪de",
+         assertEquals(api.getDynamicLargeObjectApi("DFW", "myContainer").replaceManifest("unic₪de",
                ImmutableList.<Segment> builder()
                      .add(Segment.builder().path("/mycontainer/unic₪de//1").etag("0228c7926b8b642dfb29554cd1f00963")
                            .sizeBytes(1468006).build())

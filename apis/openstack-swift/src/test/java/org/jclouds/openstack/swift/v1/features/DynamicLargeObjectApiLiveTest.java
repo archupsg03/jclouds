@@ -17,15 +17,13 @@
 package org.jclouds.openstack.swift.v1.features;
 
 import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.jclouds.io.Payloads.newByteSourcePayload;
-import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import org.jclouds.io.Payloads;
 import org.jclouds.openstack.swift.v1.domain.ObjectList;
@@ -33,6 +31,7 @@ import org.jclouds.openstack.swift.v1.domain.Segment;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.internal.BaseSwiftApiLiveTest;
 import org.jclouds.openstack.swift.v1.options.ListContainerOptions;
+import org.jclouds.utils.TestUtils;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -42,79 +41,60 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.io.ByteSource;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 @Test(groups = "live", testName = "DynamicLargeObjectApiLiveTest", singleThreaded = true)
 public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
 
    private String defaultName = getClass().getSimpleName();
    private String defaultContainerName = getClass().getSimpleName() + "Container";
-   private byte[] megOf1s;
-   private byte[] megOf2s;
-   String objectName = "myObject";
+   private ByteSource megOf1s;
+   private ByteSource megOf2s;
+   private String objectName = "myObject";
 
    @Test
    public void testReplaceManifest() throws Exception {
       for (String regionId : regions) {
          assertReplaceManifest(regionId, defaultContainerName, defaultName);
          uploadLargeFile(regionId);
-         removeLargeFile(regionId);
       }
    }
 
    @SuppressWarnings("deprecation")
    @Test
    public void uploadLargeFile(String regionId) throws IOException, InterruptedException {
-      /*
-       * createRandomFile(SIZE, bigFile); Payload payLoad = new
-       * FilePayload(bigFile);
-       */
-      List<Segment> list1 = new ArrayList<Segment>();
+      List<Segment> segmentList = new ArrayList<Segment>();
       int partNumber = 1;
       int total_size = 0;
       // configure the blobstore to use multipart uploading of the file
-      /*
-       * payLoad.getContentMetadata().setContentLength(bigFile.length());
-       * BasePayloadSlicer slicer = new BasePayloadSlicer();
-       */
-      while (partNumber < 3) {
-         String objName = objectName + "/dlo/" + String.valueOf(partNumber);
-         String data = "data".concat(String.valueOf(partNumber));
+      for (int i = partNumber; i < 3; partNumber++) {
+         String objName = String.format("%s/%s/%s", objectName, "dlo", partNumber);
+         String data = String.format("%s%s", "data", partNumber);
          String etag = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).uploadLargeFile(
                defaultContainerName, objName, Payloads.newPayload(data), ImmutableMap.of("myfoo", "Bar"),
                ImmutableMap.of("myfoo", "Bar"));
          Segment s = new Segment(objName, etag, data.length());
          assertNotNull(etag);
-         list1.add(s);
-         partNumber++;
-         total_size = total_size + data.length();
+         segmentList.add(s);
+         total_size += data.length();
       }
       String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).replaceManifest(
-            defaultContainerName, objectName, list1, ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar"));
+            objectName, segmentList, ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar"));
 
       SwiftObject bigObject = getApi().getObjectApi(regionId, defaultContainerName).get(objectName);
-      assertEquals(bigObject.getETag(), etagOfEtags);
-      assertEquals(bigObject.getPayload().getContentMetadata().getContentLength(), Long.valueOf(total_size));
-      assertEquals(bigObject.getMetadata(), ImmutableMap.of("myfoo", "Bar"));
-      assertEquals(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount(), Long.valueOf(3));
-   }
-
-   @SuppressWarnings("deprecation")
-   @Test(dependsOnMethods = "uploadLargeFile")
-   public void removeLargeFile(String regionId) {
-      getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).removeLargeFile(defaultContainerName,
-            objectName);
-      assertEquals(Long.valueOf(getApi().getObjectApi(regionId, defaultContainerName).list().size()), Long.valueOf(2));
+      assertThat(bigObject.getETag().equals(etagOfEtags));
+      assertThat(bigObject.getPayload().getContentMetadata().getContentLength().equals(Long.valueOf(total_size)));
+      assertThat(bigObject.getMetadata().equals(ImmutableMap.of("myfoo", "Bar")));
+      assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount().equals(Long.valueOf(3)));
    }
 
    protected void assertReplaceManifest(String regionId, String containerName, String name) {
       ObjectApi objectApi = getApi().getObjectApi(regionId, containerName);
 
-      String etag1s = objectApi.put(name + "/1", newByteSourcePayload(ByteSource.wrap(megOf1s)));
+      String etag1s = objectApi.put(name + "/1", newByteSourcePayload(megOf1s));
       awaitConsistency();
       assertMegabyteAndETagMatches(regionId, containerName, name + "/1", etag1s);
 
-      String etag2s = objectApi.put(name + "/2", newByteSourcePayload(ByteSource.wrap(megOf2s)));
+      String etag2s = objectApi.put(name + "/2", newByteSourcePayload(megOf2s));
       awaitConsistency();
       assertMegabyteAndETagMatches(regionId, containerName, name + "/2", etag2s);
 
@@ -126,32 +106,30 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
             .build();
 
       awaitConsistency();
-      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, containerName).replaceManifest(containerName,
-            name, segments, ImmutableMap.of("myfoo", "Bar"), ImmutableMap.of("header1", "value1"));
+      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, containerName).replaceManifest(name, segments,
+            ImmutableMap.of("myfoo", "Bar"), ImmutableMap.of("header1", "value1"));
 
       assertNotNull(etagOfEtags);
 
       awaitConsistency();
 
       SwiftObject bigObject = getApi().getObjectApi(regionId, containerName).get(name);
-      assertEquals(bigObject.getETag(), etagOfEtags);
-      assertEquals(bigObject.getPayload().getContentMetadata().getContentLength(), Long.valueOf(2 * 1024 * 1024));
-      assertEquals(bigObject.getMetadata(), ImmutableMap.of("myfoo", "Bar"));
+      assertThat(bigObject.getETag().equals(etagOfEtags));
+      assertThat(bigObject.getPayload().getContentMetadata().getContentLength().equals(Long.valueOf(2 * 1024 * 1024)));
+      assertThat(bigObject.getMetadata().equals(ImmutableMap.of("myfoo", "Bar")));
 
       // segments are visible
-      assertEquals(getApi().getContainerApi(regionId).get(containerName).getObjectCount(), Long.valueOf(3));
+      assertThat(getApi().getContainerApi(regionId).get(containerName).getObjectCount().equals(Long.valueOf(3)));
    }
 
    protected void assertMegabyteAndETagMatches(String regionId, String containerName, String name, String etag1s) {
       SwiftObject object1s = getApi().getObjectApi(regionId, containerName).get(name);
-      assertEquals(object1s.getETag(), etag1s);
-      assertEquals(object1s.getPayload().getContentMetadata().getContentLength(), Long.valueOf(1024 * 1024));
+      assertThat(object1s.getETag().equals(etag1s));
+      assertThat(object1s.getPayload().getContentMetadata().getContentLength().equals(Long.valueOf(1024 * 1024)));
    }
 
    protected void deleteAllObjectsInContainerDLO(String regionId, final String containerName) {
-      Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-
-      ObjectList objects = getApi().getObjectApi(regionId, containerName).list(new ListContainerOptions());
+       ObjectList objects = getApi().getObjectApi(regionId, containerName).list(new ListContainerOptions());
       if (objects == null) {
          return;
       }
@@ -177,11 +155,14 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
          }
       }
 
-      megOf1s = new byte[1024 * 1024];
+     /* megOf1s = new byte[1024 * 1024];
       megOf2s = new byte[1024 * 1024];
 
       Arrays.fill(megOf1s, (byte) 1);
-      Arrays.fill(megOf2s, (byte) 2);
+      Arrays.fill(megOf2s, (byte) 2);*/
+      
+      megOf1s = TestUtils.randomByteSource().slice(0, 1048576);
+      megOf2s = TestUtils.randomByteSource().slice(0, 1048576);
    }
 
    @AfterClass(groups = "live")

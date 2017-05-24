@@ -19,17 +19,15 @@ package org.jclouds.openstack.swift.v1.features;
 import static com.google.common.net.HttpHeaders.EXPECT;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 import javax.inject.Named;
 import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 
-import org.jclouds.Fallbacks.VoidOnNotFoundOr404;
 import org.jclouds.io.Payload;
 import org.jclouds.openstack.keystone.v2_0.filters.AuthenticateRequest;
 import org.jclouds.openstack.swift.v1.binders.BindMetadataToHeaders.BindObjectMetadataToHeaders;
@@ -39,7 +37,6 @@ import org.jclouds.openstack.swift.v1.domain.Segment;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.functions.ETagHeader;
 import org.jclouds.rest.annotations.BinderParam;
-import org.jclouds.rest.annotations.Fallback;
 import org.jclouds.rest.annotations.Headers;
 import org.jclouds.rest.annotations.RequestFilters;
 import org.jclouds.rest.annotations.ResponseParser;
@@ -83,8 +80,8 @@ public interface DynamicLargeObjectApi {
    @PUT
    @ResponseParser(ETagHeader.class)
    @Headers(keys = "X-Object-Manifest", values = "{containerName}/{objectName}/")
-   String replaceManifest(@PathParam("containerName") String containerName, @PathParam("objectName") String objectName,
-         @BinderParam(BindToJsonPayload.class) List<Segment> segments,
+   String replaceManifest(@PathParam("objectName") String objectName,
+         @BinderParam(BindToJsonPayload.class) Collection<Segment> segments,
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);
    
@@ -106,7 +103,7 @@ public interface DynamicLargeObjectApi {
     */
    
    @Deprecated
-   @Named("dynamicLargeObject: uploadLargeFile")
+   @Named("dynamicLargeObject:uploadLargeFile")
    @PUT
    @Headers(keys = EXPECT, values = "100-continue")
    @ResponseParser(ETagHeader.class)
@@ -114,17 +111,4 @@ public interface DynamicLargeObjectApi {
          @BinderParam(SetPayload.class) Payload blob,
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);
-
-   /**
-    * Delete objects.
-    *
-    * @param objectName
-    *           corresponds to {@link SwiftObject#getName()}.
-    */
-   
-   @Deprecated
-   @Named("dynamicLargeObject: removeLargeFile")
-   @DELETE
-   @Fallback(VoidOnNotFoundOr404.class)
-   void removeLargeFile(@PathParam("containerName") String container, @PathParam("objectName") String name);
 }

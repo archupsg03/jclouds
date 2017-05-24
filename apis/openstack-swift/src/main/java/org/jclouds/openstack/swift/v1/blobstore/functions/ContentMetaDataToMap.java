@@ -17,7 +17,6 @@
 package org.jclouds.openstack.swift.v1.blobstore.functions;
 
 import org.jclouds.io.ContentMetadata;
-import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
