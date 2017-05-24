@@ -115,8 +115,6 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
       // Delete uploaded file
       blobStore.clearContainer(CONTAINER);
       blobStore.deleteContainer(CONTAINER);
-      blobStore.clearContainer(CONTAINER_TEMP);
-      blobStore.deleteContainer(CONTAINER_TEMP);
    }
 
    @Test(expectedExceptions = { IllegalStateException.class })
@@ -126,8 +124,8 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
       Blob blob = blobStore.blobBuilder(smallFile.getName())
             .payload(new FilePayload(smallFile))
             .build();
-      blobStore.putBlob(CONTAINER, blob);
-      blobStore.getBlob(CONTAINER, smallFile.getName());
+      blobStore.putBlob(CONTAINER_TEMP, blob);
+      blobStore.getBlob(CONTAINER_TEMP, smallFile.getName());
       blobStore.clearContainer(CONTAINER_TEMP);
       blobStore.deleteContainer(CONTAINER_TEMP);
    }
@@ -139,8 +137,11 @@ public class RegionScopedSwiftBlobStoreParallelLiveTest extends BaseBlobStoreInt
       Blob blob = blobStore.blobBuilder(smallFile.getName())
             .payload(new FilePayload(smallFile))
             .build();
-      blobStore.putBlob(CONTAINER, blob);
-      blobStore.getBlob(CONTAINER, smallFile.getName());
+      blobStore.putBlob(CONTAINER_TEMP, blob);
+      blobStore.getBlob(CONTAINER_TEMP, smallFile.getName());
+      assertEquals(blobStore.countBlobs(CONTAINER_TEMP), "1");
+      blobStore.clearContainer(CONTAINER_TEMP);
+      blobStore.deleteContainer(CONTAINER_TEMP);
    }
    
    @Test
