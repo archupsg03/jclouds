@@ -47,8 +47,8 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
 
    private String defaultName = getClass().getSimpleName();
    private String defaultContainerName = getClass().getSimpleName() + "Container";
-   private ByteSource megOf1s;
-   private ByteSource megOf2s;
+   private static final ByteSource megOf1s = TestUtils.randomByteSource().slice(0, 1024 * 1024);;
+   private static final ByteSource megOf2s = TestUtils.randomByteSource().slice(0, 1024 * 1024);;
    private String objectName = "myObject";
 
    @Test
@@ -77,16 +77,17 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
          segmentList.add(s);
          total_size += data.length();
       }
-      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).replaceManifest(
-            objectName, segmentList, ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar"));
+      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).putManifest(
+            objectName, ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar"));
 
       SwiftObject bigObject = getApi().getObjectApi(regionId, defaultContainerName).get(objectName);
-      assertThat(bigObject.getETag().equals(etagOfEtags));
-      assertThat(bigObject.getPayload().getContentMetadata().getContentLength().equals(Long.valueOf(total_size)));
-      assertThat(bigObject.getMetadata().equals(ImmutableMap.of("myfoo", "Bar")));
-      assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount().equals(Long.valueOf(3)));
+      assertThat(bigObject.getETag()).isEqualTo(etagOfEtags);
+      assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(total_size));
+      assertThat(bigObject.getMetadata()).isEqualTo(ImmutableMap.of("myfoo", "Bar"));
+      assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount()).isEqualTo(Long.valueOf(3));
    }
 
+   @SuppressWarnings("deprecation")
    protected void assertReplaceManifest(String regionId, String containerName, String name) {
       ObjectApi objectApi = getApi().getObjectApi(regionId, containerName);
 
@@ -106,26 +107,26 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
             .build();
 
       awaitConsistency();
-      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, containerName).replaceManifest(name, segments,
-            ImmutableMap.of("myfoo", "Bar"), ImmutableMap.of("header1", "value1"));
+      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, containerName).putManifest(name,
+            ImmutableMap.of("myfoo", "Bar"));
 
       assertNotNull(etagOfEtags);
 
       awaitConsistency();
 
       SwiftObject bigObject = getApi().getObjectApi(regionId, containerName).get(name);
-      assertThat(bigObject.getETag().equals(etagOfEtags));
-      assertThat(bigObject.getPayload().getContentMetadata().getContentLength().equals(Long.valueOf(2 * 1024 * 1024)));
-      assertThat(bigObject.getMetadata().equals(ImmutableMap.of("myfoo", "Bar")));
+      assertThat(bigObject.getETag()).isEqualTo(etagOfEtags);
+      assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(2 * 1024L * 1024L));
+      assertThat(bigObject.getMetadata()).isEqualTo(ImmutableMap.of("myfoo", "Bar"));
 
       // segments are visible
-      assertThat(getApi().getContainerApi(regionId).get(containerName).getObjectCount().equals(Long.valueOf(3)));
+      assertThat(getApi().getContainerApi(regionId).get(containerName).getObjectCount()).isEqualTo(Long.valueOf(3));
    }
 
    protected void assertMegabyteAndETagMatches(String regionId, String containerName, String name, String etag1s) {
       SwiftObject object1s = getApi().getObjectApi(regionId, containerName).get(name);
-      assertThat(object1s.getETag().equals(etag1s));
-      assertThat(object1s.getPayload().getContentMetadata().getContentLength().equals(Long.valueOf(1024 * 1024)));
+      assertThat(object1s.getETag()).isEqualTo(etag1s);
+      assertThat(object1s.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(1024L * 1024L));
    }
 
    protected void deleteAllObjectsInContainerDLO(String regionId, final String containerName) {
@@ -154,15 +155,6 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
             deleteAllObjectsInContainer(regionId, defaultContainerName);
          }
       }
-
-     /* megOf1s = new byte[1024 * 1024];
-      megOf2s = new byte[1024 * 1024];
-
-      Arrays.fill(megOf1s, (byte) 1);
-      Arrays.fill(megOf2s, (byte) 2);*/
-      
-      megOf1s = TestUtils.randomByteSource().slice(0, 1048576);
-      megOf2s = TestUtils.randomByteSource().slice(0, 1048576);
    }
 
    @AfterClass(groups = "live")

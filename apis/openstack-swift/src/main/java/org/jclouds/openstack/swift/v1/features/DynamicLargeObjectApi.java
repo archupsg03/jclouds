@@ -19,7 +19,6 @@ package org.jclouds.openstack.swift.v1.features;
 import static com.google.common.net.HttpHeaders.EXPECT;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
-import java.util.Collection;
 import java.util.Map;
 
 import javax.inject.Named;
@@ -33,14 +32,12 @@ import org.jclouds.openstack.keystone.v2_0.filters.AuthenticateRequest;
 import org.jclouds.openstack.swift.v1.binders.BindMetadataToHeaders.BindObjectMetadataToHeaders;
 import org.jclouds.openstack.swift.v1.binders.BindToHeaders;
 import org.jclouds.openstack.swift.v1.binders.SetPayload;
-import org.jclouds.openstack.swift.v1.domain.Segment;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.functions.ETagHeader;
 import org.jclouds.rest.annotations.BinderParam;
 import org.jclouds.rest.annotations.Headers;
 import org.jclouds.rest.annotations.RequestFilters;
 import org.jclouds.rest.annotations.ResponseParser;
-import org.jclouds.rest.binders.BindToJsonPayload;
 
 import com.google.common.annotations.Beta;
 
@@ -64,8 +61,6 @@ public interface DynamicLargeObjectApi {
     *
     * @param objectName
     *           corresponds to {@link SwiftObject#getName()}.
-    * @param segments
-    *           ordered parts which will be concatenated upon download.
     * @param metadata
     *           corresponds to {@link SwiftObject#getMetadata()}.
     * @param headers
@@ -80,18 +75,36 @@ public interface DynamicLargeObjectApi {
    @PUT
    @ResponseParser(ETagHeader.class)
    @Headers(keys = "X-Object-Manifest", values = "{containerName}/{objectName}/")
-   String replaceManifest(@PathParam("objectName") String objectName,
-         @BinderParam(BindToJsonPayload.class) Collection<Segment> segments,
+   String putManifest(@PathParam("objectName") String objectName,
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);
+   
+   /**
+    * Creates or updates a dynamic large object's manifest.
+    *
+    * @param objectName
+    *           corresponds to {@link SwiftObject#getName()}.
+    * @param metadata
+    *           corresponds to {@link SwiftObject#getMetadata()}.
+    *           
+    * @return {@link SwiftObject#getEtag()} of the object, which is the MD5
+    *         checksum of the concatenated ETag values of the {@code segments}.
+    */
+   @Deprecated
+   @Named("dynamicLargeObject:replaceManifest")
+   @PUT
+   @ResponseParser(ETagHeader.class)
+   @Headers(keys = "X-Object-Manifest", values = "{containerName}/{objectName}/")
+   String putManifest(@PathParam("objectName") String objectName,
+         @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata);
    
    /**
     * Creates object segments.
     *
     * @param objectName
     *           corresponds to {@link SwiftObject#getName()}.
-    * @param segments
-    *           ordered parts which will be concatenated upon download.
+    * @param blob
+    *           Content of the object.
     * @param metadata
     *           corresponds to {@link SwiftObject#getMetadata()}.
     * @param headers
