@@ -71,7 +71,7 @@ public interface DynamicLargeObjectApi {
     *         checksum of the concatenated ETag values of the {@code segments}.
     */
    @Deprecated
-   @Named("dynamicLargeObject:replaceManifest")
+   @Named("dynamicLargeObject:putManifest")
    @PUT
    @ResponseParser(ETagHeader.class)
    @Headers(keys = "X-Object-Manifest", values = "{containerName}/{objectName}/")
@@ -87,41 +87,14 @@ public interface DynamicLargeObjectApi {
     * @param metadata
     *           corresponds to {@link SwiftObject#getMetadata()}.
     *           
-    * @return {@link SwiftObject#getEtag()} of the object, which is the MD5
-    *         checksum of the concatenated ETag values of the {@code segments}.
+    * @return {@link SwiftObject#getEtag()} of the object, which is the etag
+    *         of 0 sized object.
     */
    @Deprecated
-   @Named("dynamicLargeObject:replaceManifest")
+   @Named("dynamicLargeObject:putManifest")
    @PUT
    @ResponseParser(ETagHeader.class)
    @Headers(keys = "X-Object-Manifest", values = "{containerName}/{objectName}/")
    String putManifest(@PathParam("objectName") String objectName,
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata);
-   
-   /**
-    * Creates object segments.
-    *
-    * @param objectName
-    *           corresponds to {@link SwiftObject#getName()}.
-    * @param blob
-    *           Content of the object.
-    * @param metadata
-    *           corresponds to {@link SwiftObject#getMetadata()}.
-    * @param headers
-    *           Binds the map to headers, without prefixing/escaping the header
-    *           name/key.
-    *
-    * @return {@link SwiftObject#getEtag()} of the object, which is the MD5
-    *         checksum of the concatenated ETag values of the {@code segments}.
-    */
-   
-   @Deprecated
-   @Named("dynamicLargeObject:uploadLargeFile")
-   @PUT
-   @Headers(keys = EXPECT, values = "100-continue")
-   @ResponseParser(ETagHeader.class)
-   String uploadPart(@PathParam("containerName") String container, @PathParam("objectName") String objectName,
-         @BinderParam(SetPayload.class) Payload blob,
-         @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
-         @BinderParam(BindToHeaders.class) Map<String, String> headers);
 }

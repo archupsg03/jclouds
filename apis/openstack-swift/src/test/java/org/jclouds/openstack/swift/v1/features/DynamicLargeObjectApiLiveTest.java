@@ -16,18 +16,17 @@
  */
 package org.jclouds.openstack.swift.v1.features;
 
-import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.jclouds.io.Payloads.newByteSourcePayload;
 import static org.testng.Assert.assertNotNull;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
-import org.jclouds.io.Payloads;
+import org.jclouds.blobstore.BlobStore;
+import org.jclouds.blobstore.domain.Blob;
+import org.jclouds.openstack.swift.v1.blobstore.RegionScopedBlobStoreContext;
 import org.jclouds.openstack.swift.v1.domain.ObjectList;
-import org.jclouds.openstack.swift.v1.domain.Segment;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.internal.BaseSwiftApiLiveTest;
 import org.jclouds.openstack.swift.v1.options.ListContainerOptions;
@@ -36,8 +35,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.io.ByteSource;
@@ -62,29 +61,27 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
    @SuppressWarnings("deprecation")
    @Test
    public void uploadLargeFile(String regionId) throws IOException, InterruptedException {
-      List<Segment> segmentList = new ArrayList<Segment>();
       int partNumber = 1;
       int total_size = 0;
+      RegionScopedBlobStoreContext ctx = RegionScopedBlobStoreContext.class.cast(view);
+      BlobStore blobStore = ctx.getBlobStore();
       // configure the blobstore to use multipart uploading of the file
-      for (int i = partNumber; i < 3; partNumber++) {
+      for (int i = partNumber; i <= 3; partNumber++) {
          String objName = String.format("%s/%s/%s", objectName, "dlo", partNumber);
          String data = String.format("%s%s", "data", partNumber);
-         String etag = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).uploadPart(
-               defaultContainerName, objName, Payloads.newPayload(data), ImmutableMap.of("myfoo", "Bar"),
-               ImmutableMap.of("myfoo", "Bar"));
-         Segment s = new Segment(objName, etag, data.length());
+         ByteSource payload = ByteSource.wrap(data.getBytes(Charsets.UTF_8));
+         Blob blob = blobStore.blobBuilder(objName)
+               .payload(payload)
+               .build();
+         String etag = blobStore.putBlob(defaultContainerName, blob);
          assertNotNull(etag);
-         segmentList.add(s);
          total_size += data.length();
       }
-      String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).putManifest(
-            objectName, ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar"));
-
+      
       SwiftObject bigObject = getApi().getObjectApi(regionId, defaultContainerName).get(objectName);
-      assertThat(bigObject.getETag()).isEqualTo(etagOfEtags);
+      assertThat(bigObject.getETag()).isEqualTo("2ab6425924e6cd38b2474c543c5ea602");
       assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(total_size));
-      assertThat(bigObject.getMetadata()).isEqualTo(ImmutableMap.of("myfoo", "Bar"));
-      assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount()).isEqualTo(Long.valueOf(3));
+      assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount()).isEqualTo(Long.valueOf(4));
    }
 
    @SuppressWarnings("deprecation")
@@ -99,13 +96,6 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
       awaitConsistency();
       assertMegabyteAndETagMatches(regionId, containerName, name + "/2", etag2s);
 
-      List<Segment> segments = ImmutableList.<Segment> builder()
-            .add(Segment.builder().path(format("%s/%s/1", containerName, name)).etag(etag1s).sizeBytes(1024 * 1024)
-                  .build())
-            .add(Segment.builder().path(format("%s/%s/2", containerName, name)).etag(etag2s).sizeBytes(1024 * 1024)
-                  .build())
-            .build();
-
       awaitConsistency();
       String etagOfEtags = getApi().getDynamicLargeObjectApi(regionId, containerName).putManifest(name,
             ImmutableMap.of("myfoo", "Bar"));
@@ -115,10 +105,8 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
       awaitConsistency();
 
       SwiftObject bigObject = getApi().getObjectApi(regionId, containerName).get(name);
-      assertThat(bigObject.getETag()).isEqualTo(etagOfEtags);
       assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(2 * 1024L * 1024L));
       assertThat(bigObject.getMetadata()).isEqualTo(ImmutableMap.of("myfoo", "Bar"));
-
       // segments are visible
       assertThat(getApi().getContainerApi(regionId).get(containerName).getObjectCount()).isEqualTo(Long.valueOf(3));
    }

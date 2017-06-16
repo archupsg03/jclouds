@@ -18,7 +18,6 @@
 package org.jclouds.openstack.swift.v1.features;
 
 import static com.google.common.net.HttpHeaders.ETAG;
-import static com.google.common.net.HttpHeaders.EXPECT;
 import static org.jclouds.openstack.swift.v1.reference.SwiftHeaders.OBJECT_METADATA_PREFIX;
 import static org.testng.Assert.assertEquals;
 
@@ -27,7 +26,6 @@ import org.jclouds.openstack.swift.v1.SwiftApi;
 import org.jclouds.openstack.v2_0.internal.BaseOpenStackMockTest;
 import org.testng.annotations.Test;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HttpHeaders;
 import com.squareup.okhttp.mockwebserver.MockResponse;
@@ -46,23 +44,23 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
       MockWebServer server = mockOpenStackServer();
       server.enqueue(addCommonHeaders(new MockResponse().setBody(stringFromResource("/access.json"))));
       server.enqueue(new MockResponse().setBody("").addHeader(ETAG, "89d903bc35dede724fd52c51437ff5fd"));
+      server.enqueue(new MockResponse().setBody("").addHeader(ETAG, "d41d8cd98f00b204e9800998ecf8427e"));
       server.enqueue(addCommonHeaders(new MockResponse().addHeader("X-Object-Manifest", "myContainer/myObject")));
 
       try {
          SwiftApi api = api(server.getUrl("/").toString(), "openstack-swift");
-         assertEquals(
-               api.getDynamicLargeObjectApi("DFW", containerName).uploadPart(containerName, objectName.concat("1"),
-                     Payloads.newPayload("data1"), ImmutableMap.of("myfoo", "Bar"), ImmutableMap.of("myfoo", "Bar")),
+         assertEquals(api.getObjectApi("DFW", containerName).put(objectName.concat("1"), Payloads.newPayload("data1")),
                "89d903bc35dede724fd52c51437ff5fd");
-         api.getDynamicLargeObjectApi("DFW", containerName).putManifest(objectName,
-               ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar"));
+         assertEquals(api.getDynamicLargeObjectApi("DFW", containerName).putManifest(objectName,
+               ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar")), "d41d8cd98f00b204e9800998ecf8427e");
+      
          assertEquals(server.getRequestCount(), 3);
          assertAuthentication(server);
          
          RecordedRequest uploadRequest = server.takeRequest();
          assertEquals(uploadRequest.getRequestLine(),
                "PUT /v1/MossoCloudFS_5bcf396e-39dd-45ff-93a1-712b9aba90a9/myContainer/myObjectTest1 HTTP/1.1");
-         assertEquals(uploadRequest.getHeaders(EXPECT), ImmutableList.of("100-continue"));
+         assertEquals(new String(uploadRequest.getBody()), "data1");
          
          RecordedRequest uploadRequestManifest = server.takeRequest();
          assertRequest(uploadRequestManifest, "PUT",
