@@ -16,7 +16,6 @@
  */
 package org.jclouds.openstack.swift.v1.features;
 
-import static com.google.common.net.HttpHeaders.EXPECT;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
 import java.util.Map;
@@ -27,11 +26,9 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 
-import org.jclouds.io.Payload;
 import org.jclouds.openstack.keystone.v2_0.filters.AuthenticateRequest;
 import org.jclouds.openstack.swift.v1.binders.BindMetadataToHeaders.BindObjectMetadataToHeaders;
 import org.jclouds.openstack.swift.v1.binders.BindToHeaders;
-import org.jclouds.openstack.swift.v1.binders.SetPayload;
 import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.functions.ETagHeader;
 import org.jclouds.rest.annotations.BinderParam;
