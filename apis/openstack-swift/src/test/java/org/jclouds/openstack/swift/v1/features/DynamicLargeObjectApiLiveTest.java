@@ -127,10 +127,10 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
             return containerName + "/" + input.getName();
          }
       });
-      if (!pathsToDelete.isEmpty()) {
-         for (String name : pathsToDelete)
-            getApi().getObjectApi(regionId, containerName).delete(name);
-      }
+      
+      for (String name : pathsToDelete)
+         getApi().getObjectApi(regionId, containerName).delete(name);
+      
    }
 
    @Override
