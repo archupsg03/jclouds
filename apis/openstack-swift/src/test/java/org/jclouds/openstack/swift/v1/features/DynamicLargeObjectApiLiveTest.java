@@ -31,8 +31,6 @@ import org.jclouds.openstack.swift.v1.domain.SwiftObject;
 import org.jclouds.openstack.swift.v1.internal.BaseSwiftApiLiveTest;
 import org.jclouds.openstack.swift.v1.options.ListContainerOptions;
 import org.jclouds.utils.TestUtils;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import com.google.common.base.Charsets;
@@ -45,7 +43,6 @@ import com.google.common.io.ByteSource;
 public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
 
    private String defaultName = getClass().getSimpleName();
-   private String defaultContainerName = getClass().getSimpleName() + "Container";
    private static final ByteSource megOf1s = TestUtils.randomByteSource().slice(0, 1024 * 1024);;
    private static final ByteSource megOf2s = TestUtils.randomByteSource().slice(0, 1024 * 1024);;
    private String objectName = "myObject";
@@ -53,7 +50,7 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
    @Test
    public void testReplaceManifest() throws Exception {
       for (String regionId : regions) {
-         assertReplaceManifest(regionId, defaultContainerName, defaultName);
+         assertReplaceManifest(regionId, defaultName);
          uploadLargeFile(regionId);
       }
    }
@@ -61,12 +58,12 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
    @SuppressWarnings("deprecation")
    @Test
    public void uploadLargeFile(String regionId) throws IOException, InterruptedException {
-      int partNumber = 1;
       int total_size = 0;
       RegionScopedBlobStoreContext ctx = RegionScopedBlobStoreContext.class.cast(view);
       BlobStore blobStore = ctx.getBlobStore();
+      String defaultContainerName = getContainerName();
       // configure the blobstore to use multipart uploading of the file
-      for (int i = partNumber; i <= 3; partNumber++) {
+      for (int partNumber = 0; partNumber < 3; partNumber++) {
          String objName = String.format("%s/%s/%s", objectName, "dlo", partNumber);
          String data = String.format("%s%s", "data", partNumber);
          ByteSource payload = ByteSource.wrap(data.getBytes(Charsets.UTF_8));
@@ -78,14 +75,18 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
          total_size += data.length();
       }
       
+      getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).putManifest(objectName,
+            ImmutableMap.of("myfoo", "Bar"));
+     
       SwiftObject bigObject = getApi().getObjectApi(regionId, defaultContainerName).get(objectName);
-      assertThat(bigObject.getETag()).isEqualTo("2ab6425924e6cd38b2474c543c5ea602");
+      assertThat(bigObject.getETag()).isEqualTo("54bc1337d7a51660c40db39759cc1944");
       assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(total_size));
       assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount()).isEqualTo(Long.valueOf(4));
    }
 
    @SuppressWarnings("deprecation")
-   protected void assertReplaceManifest(String regionId, String containerName, String name) {
+   protected void assertReplaceManifest(String regionId, String name) throws InterruptedException {
+      String containerName = getContainerName();
       ObjectApi objectApi = getApi().getObjectApi(regionId, containerName);
 
       String etag1s = objectApi.put(name + "/1", newByteSourcePayload(megOf1s));
@@ -131,25 +132,5 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
       for (String name : pathsToDelete)
          getApi().getObjectApi(regionId, containerName).delete(name);
       
-   }
-
-   @Override
-   @BeforeClass(groups = "live")
-   public void setup() {
-      super.setup();
-      for (String regionId : regions) {
-         boolean created = getApi().getContainerApi(regionId).create(defaultContainerName);
-         if (!created) {
-            deleteAllObjectsInContainer(regionId, defaultContainerName);
-         }
-      }
-   }
-
-   @AfterClass(groups = "live")
-   public void tearDown() {
-      for (String regionId : regions) {
-         deleteAllObjectsInContainerDLO(regionId, defaultContainerName);
-         getApi().getContainerApi(regionId).deleteIfEmpty(defaultContainerName);
-      }
    }
 }
