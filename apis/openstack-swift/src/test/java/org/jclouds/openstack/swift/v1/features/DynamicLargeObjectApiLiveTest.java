@@ -74,10 +74,8 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
          assertNotNull(etag);
          total_size += data.length();
       }
-      
       getApi().getDynamicLargeObjectApi(regionId, defaultContainerName).putManifest(objectName,
             ImmutableMap.of("myfoo", "Bar"));
-     
       SwiftObject bigObject = getApi().getObjectApi(regionId, defaultContainerName).get(objectName);
       assertThat(bigObject.getETag()).isEqualTo("54bc1337d7a51660c40db39759cc1944");
       assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(total_size));
@@ -128,9 +126,8 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
             return containerName + "/" + input.getName();
          }
       });
-      
+
       for (String name : pathsToDelete)
          getApi().getObjectApi(regionId, containerName).delete(name);
-      
    }
 }

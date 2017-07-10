@@ -68,7 +68,7 @@ public interface SwiftApi extends Closeable {
    @Path("/{containerName}")
    StaticLargeObjectApi getStaticLargeObjectApi(@EndpointParam(parser = RegionToEndpoint.class) String region,
          @PathParam("containerName") String containerName);
-   
+
    @Delegate
    @Path("/{containerName}")
    DynamicLargeObjectApi getDynamicLargeObjectApi(@EndpointParam(parser = RegionToEndpoint.class) String region,

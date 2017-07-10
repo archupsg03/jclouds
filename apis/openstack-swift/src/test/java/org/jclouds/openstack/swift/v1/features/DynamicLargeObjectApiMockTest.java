@@ -53,15 +53,15 @@ public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftAp
                "89d903bc35dede724fd52c51437ff5fd");
          assertEquals(api.getDynamicLargeObjectApi("DFW", containerName).putManifest(objectName,
                ImmutableMap.of("MyFoo", "Bar"), ImmutableMap.of("MyFoo", "Bar")), "d41d8cd98f00b204e9800998ecf8427e");
-      
+
          assertEquals(server.getRequestCount(), 3);
          assertAuthentication(server);
-         
+
          RecordedRequest uploadRequest = server.takeRequest();
          assertEquals(uploadRequest.getRequestLine(),
                "PUT /v1/MossoCloudFS_5bcf396e-39dd-45ff-93a1-712b9aba90a9/myContainer/myObjectTest1 HTTP/1.1");
          assertEquals(new String(uploadRequest.getBody()), "data1");
-         
+
          RecordedRequest uploadRequestManifest = server.takeRequest();
          assertRequest(uploadRequestManifest, "PUT",
                "/v1/MossoCloudFS_5bcf396e-39dd-45ff-93a1-712b9aba90a9/myContainer/myObjectTest");

@@ -75,7 +75,7 @@ public interface DynamicLargeObjectApi {
    String putManifest(@PathParam("objectName") String objectName,
          @BinderParam(BindObjectMetadataToHeaders.class) Map<String, String> metadata,
          @BinderParam(BindToHeaders.class) Map<String, String> headers);
-   
+
    /**
     * Creates or updates a dynamic large object's manifest.
     *
@@ -83,7 +83,7 @@ public interface DynamicLargeObjectApi {
     *           corresponds to {@link SwiftObject#getName()}.
     * @param metadata
     *           corresponds to {@link SwiftObject#getMetadata()}.
-    *           
+    *
     * @return {@link SwiftObject#getEtag()} of the object, which is the etag
     *         of 0 sized object.
     */
