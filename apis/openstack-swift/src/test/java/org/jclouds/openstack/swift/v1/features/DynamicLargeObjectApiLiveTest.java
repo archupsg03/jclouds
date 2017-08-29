@@ -21,7 +21,6 @@ import static org.jclouds.io.Payloads.newByteSourcePayload;
 import static org.testng.Assert.assertNotNull;
 
 import java.io.IOException;
-import java.util.List;
 
 import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.domain.Blob;
@@ -34,17 +33,15 @@ import org.jclouds.utils.TestUtils;
 import org.testng.annotations.Test;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.io.ByteSource;
 
 @Test(groups = "live", testName = "DynamicLargeObjectApiLiveTest", singleThreaded = true)
 public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
 
    private String defaultName = getClass().getSimpleName();
-   private static final ByteSource megOf1s = TestUtils.randomByteSource().slice(0, 1024 * 1024);;
-   private static final ByteSource megOf2s = TestUtils.randomByteSource().slice(0, 1024 * 1024);;
+   private static final ByteSource megOf1s = TestUtils.randomByteSource().slice(0, 1024 * 1024);
+   private static final ByteSource megOf2s = TestUtils.randomByteSource().slice(0, 1024 * 1024);
    private String objectName = "myObject";
 
    @Test
@@ -58,14 +55,14 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
    @SuppressWarnings("deprecation")
    @Test
    public void uploadLargeFile(String regionId) throws IOException, InterruptedException {
-      int total_size = 0;
+      long total_size = 0;
       RegionScopedBlobStoreContext ctx = RegionScopedBlobStoreContext.class.cast(view);
       BlobStore blobStore = ctx.getBlobStore();
       String defaultContainerName = getContainerName();
       // configure the blobstore to use multipart uploading of the file
       for (int partNumber = 0; partNumber < 3; partNumber++) {
          String objName = String.format("%s/%s/%s", objectName, "dlo", partNumber);
-         String data = String.format("%s%s", "data", partNumber);
+         String data = "data" + partNumber;
          ByteSource payload = ByteSource.wrap(data.getBytes(Charsets.UTF_8));
          Blob blob = blobStore.blobBuilder(objName)
                .payload(payload)
@@ -78,7 +75,7 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
             ImmutableMap.of("myfoo", "Bar"));
       SwiftObject bigObject = getApi().getObjectApi(regionId, defaultContainerName).get(objectName);
       assertThat(bigObject.getETag()).isEqualTo("54bc1337d7a51660c40db39759cc1944");
-      assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(Long.valueOf(total_size));
+      assertThat(bigObject.getPayload().getContentMetadata().getContentLength()).isEqualTo(total_size);
       assertThat(getApi().getContainerApi(regionId).get(defaultContainerName).getObjectCount()).isEqualTo(Long.valueOf(4));
    }
 
@@ -121,13 +118,9 @@ public class DynamicLargeObjectApiLiveTest extends BaseSwiftApiLiveTest {
       if (objects == null) {
          return;
       }
-      List<String> pathsToDelete = Lists.transform(objects, new Function<SwiftObject, String>() {
-         public String apply(SwiftObject input) {
-            return containerName + "/" + input.getName();
-         }
-      });
-
-      for (String name : pathsToDelete)
+      for (SwiftObject object : objects) {
+         String name = containerName + "/" + object.getName();
          getApi().getObjectApi(regionId, containerName).delete(name);
+      }
    }
 }

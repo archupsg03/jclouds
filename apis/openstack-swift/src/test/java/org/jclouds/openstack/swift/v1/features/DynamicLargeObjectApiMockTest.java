@@ -33,7 +33,7 @@ import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 
 @Test(groups = "unit", testName = "DynamicLargeObjectApiMockTest")
-public class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftApi> {
+public final class DynamicLargeObjectApiMockTest extends BaseOpenStackMockTest<SwiftApi> {
 
    String containerName = "myContainer";
    String objectName = "myObjectTest";

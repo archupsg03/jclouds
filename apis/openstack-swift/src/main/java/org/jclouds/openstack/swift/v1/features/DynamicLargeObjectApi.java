@@ -39,14 +39,10 @@ import org.jclouds.rest.annotations.ResponseParser;
 import com.google.common.annotations.Beta;
 
 /**
- * Provides access to the OpenStack Object Storage (Swift) Static Large Object
+ * Provides access to the OpenStack Object Storage (Swift) Dynamic Large Object
  * API features.
  * <p/>
- * This API is new to jclouds and hence is in Beta. That means we need people to
- * use it and give us feedback. Based on that feedback, minor changes to the
- * interfaces may happen. This code will replace
- * org.jclouds.openstack.swift.SwiftClient in jclouds 2.0 and it is recommended
- * you adopt it sooner than later.
+ * This API is new to jclouds and hence is in Beta.
  */
 @Beta
 @RequestFilters(AuthenticateRequest.class)
@@ -66,6 +62,8 @@ public interface DynamicLargeObjectApi {
     *
     * @return {@link SwiftObject#getEtag()} of the object, which is the MD5
     *         checksum of the concatenated ETag values of the {@code segments}.
+    *         
+    * @see {@code StaticLargeObjectApi}
     */
    @Deprecated
    @Named("dynamicLargeObject:putManifest")
@@ -86,6 +84,8 @@ public interface DynamicLargeObjectApi {
     *
     * @return {@link SwiftObject#getEtag()} of the object, which is the etag
     *         of 0 sized object.
+    *         
+    * @see {@code StaticLargeObjectApi}
     */
    @Deprecated
    @Named("dynamicLargeObject:putManifest")
